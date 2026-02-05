@@ -35,12 +35,12 @@ This repository provides a standardized dataset loader and baseline benchmarking
 ## Installation
 
 ```bash
-pip install scikit-learn numpy
+pip install -r requirements.txt
 ```
 
 ## Usage
 
-### Quick Start - Load Datasets
+### Load Datasets
 
 ```python
 from data_loader import load
@@ -52,14 +52,14 @@ datasets = load()
 datasets = load(["Iris", "Wine", "Breast Cancer"])
 ```
 
-### Quick Start - Benchmark Your Model
+### Benchmark Your Model
 
 ```python
-from sklearn.ensemble import RandomForestClassifier
 from data_loader import test_on_infinity_benchmark
 
+model = YourModel()  # Your model here
+
 # Test on all 20 datasets
-model = RandomForestClassifier(random_state=42)
 scores = test_on_infinity_benchmark(model)
 
 # Test on specific datasets
@@ -69,7 +69,7 @@ scores = test_on_infinity_benchmark(model, ["Iris", "Wine"])
 scores = test_on_infinity_benchmark(model, verbose=False)
 ```
 
-### Using the Data Loader
+### Accessing specific datastes
 
 ```python
 from data_loader import load_classification_datasets
@@ -87,30 +87,7 @@ datasets = load_classification_datasets([
 X_train, X_test, y_train, y_test = datasets["Iris"]
 ```
 
-### Running the MLP Baseline
-
-```bash
-python run_mlp_baseline.py --out results.json
-```
-
-Options:
-from sklearn.ensemble import GradientBoostingClassifier
-from data_loader import test_on_infinity_benchmark
-
-# Your custom model
-model = GradientBoostingClassifier(random_state=42)
-
-# Test on all datasets
-scores = test_on_infinity_benchmark(model)
-
-# Or test on specific datasets
-scores = test_on_infinity_benchmark(model, ["Iris", "Wine", "Breast Cancer"])
-
-# Get results without verbose output
-scores = test_on_infinity_benchmark(model, verbose=False)
-```
-
-### Manual Benchmarking (Advanced)
+### Manual Per Dataset Benchmarking 
 
 ```python
 from data_loader import load_classification_datasets
@@ -153,39 +130,6 @@ Test a model on the Infinity Benchmark datasets.
 - `verbose` (bool): Print results for each dataset (default: True)
 
 **Returns:** Dictionary mapping dataset names to accuracy scores
-
-### Adding New Models
-
-To benchmark your own model:
-Results are saved as JSON with dataset names as keys and accuracy scores as values:
-
-```json
-{
-  "Australian": 0.8550,
-  "Balance Scale": 0.7625,
-  "Blood Transfusion": 0.7575,
-  ...
-}
-```
-
-## Adding New Models
-
-To benchmark your own model:
-
-```python
-from data_loader import load_classification_datasets
-from sklearn.metrics import accuracy_score
-import numpy as np
-
-datasets = load_classification_datasets([...], logging=True)
-
-for dataset_name, (X_train, X_test, y_train, y_test) in datasets.items():
-    model = YourModel()  # Your model here
-    model.fit(np.asarray(X_train), y_train)
-    y_pred = model.predict(np.asarray(X_test))
-    score = accuracy_score(y_test, y_pred)
-    print(f"{dataset_name}: {score:.4f}")
-```
 
 ## Notes
 
