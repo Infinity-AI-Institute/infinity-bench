@@ -1,3 +1,4 @@
 scikit-learn>=1.7.0
 numpy>=1.26.0
 pandas>=2.2.0
+omega-models
