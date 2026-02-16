@@ -414,3 +414,26 @@ def test_on_datasets(model: Any, dataset_names: List[str]) -> Dict[str, float]:
         model=model,
         dataset_names=dataset_names,
     )
+
+
+def calculate_average_score(
+    scores: Dict[str, float],
+    dataset_names: Optional[List[str]] = None,
+) -> float:
+    """
+    Calculate average score across selected datasets.
+
+    If dataset_names is None or empty, uses all datasets in scores.
+    """
+    if scores is None or len(scores) == 0:
+        raise ValueError("scores must be a non-empty dictionary.")
+
+    if dataset_names is None or len(dataset_names) == 0:
+        dataset_names = list(scores.keys())
+
+    missing = [name for name in dataset_names if name not in scores]
+    if missing:
+        raise ValueError(f"Missing scores for datasets: {missing}")
+
+    selected_scores = [float(scores[name]) for name in dataset_names]
+    return float(np.mean(selected_scores))
