@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, Tuple, List, Optional, Any
 import time
 
@@ -100,7 +101,6 @@ def get_openml_classification_specs() -> Dict[str, Tuple[int, Optional[int]]]:
         "Amazon Employee Access": (4135, None),
     }
 
-
 def get_sklearn_fetched_classification_specs() -> Dict[str, Dict[str, Optional[int]]]:
     """Map sklearn-fetched datasets to loader options."""
     return {
@@ -145,12 +145,15 @@ def _preprocess_and_split(
 
     y_enc = LabelEncoder().fit_transform(y_arr)
 
+    class_counts = np.bincount(y_enc)
+    use_stratify = class_counts.size > 1 and np.min(class_counts) >= 2
+
     X_train, X_test, y_train, y_test = train_test_split(
         X_df,
         y_enc,
         test_size=test_size,
         random_state=random_state,
-        stratify=y_enc,
+        stratify=y_enc if use_stratify else None,
     )
 
     numeric_cols = X_train.select_dtypes(include=["number"]).columns.tolist()
@@ -227,12 +230,15 @@ def load_sklearn_builtin_classification_dataset(
         raise ValueError(f"Unknown sklearn builtin dataset: {name}")
 
     X, y = builtins[name]
+    class_counts = np.bincount(np.asarray(y, dtype=int))
+    use_stratify = class_counts.size > 1 and np.min(class_counts) >= 2
+
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
         test_size=test_size,
         random_state=random_state,
-        stratify=y if len(np.unique(y)) > 1 else None,
+        stratify=y if use_stratify else None,
     )
 
     scaler = StandardScaler()
@@ -288,12 +294,29 @@ def load_classification_datasets(
     test_size: float = 0.2,
     random_state: int = 42,
     logging: bool = False,
+    freeze_splits: bool = False,
+    freeze_dir: str = ".infinity_frozen_splits",
+    refresh_frozen_splits: bool = False,
 ) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     openml_specs = get_openml_classification_specs()
     sklearn_fetched_specs = get_sklearn_fetched_classification_specs()
     split_datasets: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+    freeze_root = Path(freeze_dir)
+    if freeze_splits:
+        freeze_root.mkdir(parents=True, exist_ok=True)
 
     for name in dataset_names:
+        cache_path = freeze_root / _frozen_split_filename(
+            dataset_name=name,
+            test_size=test_size,
+            random_state=random_state,
+        )
+        if freeze_splits and cache_path.exists() and not refresh_frozen_splits:
+            split_datasets[name] = _load_split_from_cache(cache_path)
+            if logging:
+                print(f"Loaded frozen split: {name} ({cache_path})")
+            continue
+
         if name in {"Iris", "Wine", "Breast Cancer", "Digits"}:
             split_datasets[name] = load_sklearn_builtin_classification_dataset(
                 name=name,
@@ -302,6 +325,8 @@ def load_classification_datasets(
             )
             if logging:
                 print(f"Loaded builtin dataset: {name}")
+            if freeze_splits:
+                _save_split_to_cache(cache_path, split_datasets[name])
             continue
 
         if name in openml_specs:
@@ -314,6 +339,8 @@ def load_classification_datasets(
             )
             if logging:
                 print(f"Loaded OpenML dataset: {name} (cap={max_rows})")
+            if freeze_splits:
+                _save_split_to_cache(cache_path, split_datasets[name])
             continue
 
         if name in sklearn_fetched_specs:
@@ -326,6 +353,8 @@ def load_classification_datasets(
             )
             if logging:
                 print(f"Loaded sklearn fetched dataset: {name} (cap={max_rows})")
+            if freeze_splits:
+                _save_split_to_cache(cache_path, split_datasets[name])
             continue
 
         raise ValueError(f"Dataset '{name}' not supported.")
@@ -338,6 +367,9 @@ def load(
     test_size: float = 0.2,
     random_state: int = 42,
     logging: bool = False,
+    freeze_splits: bool = False,
+    freeze_dir: str = ".infinity_frozen_splits",
+    refresh_frozen_splits: bool = False,
 ) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """
     Convenience function to load datasets.
@@ -352,6 +384,44 @@ def load(
         test_size=test_size,
         random_state=random_state,
         logging=logging,
+        freeze_splits=freeze_splits,
+        freeze_dir=freeze_dir,
+        refresh_frozen_splits=refresh_frozen_splits,
+    )
+
+
+def _frozen_split_filename(
+    dataset_name: str,
+    test_size: float,
+    random_state: int,
+) -> str:
+    safe_name = "".join(ch if ch.isalnum() else "_" for ch in dataset_name)
+    return f"{safe_name}__test{test_size}__seed{random_state}.npz"
+
+
+def _save_split_to_cache(
+    path: Path,
+    split: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+) -> None:
+    X_train, X_test, y_train, y_test = split
+    np.savez_compressed(
+        path,
+        X_train=np.asarray(X_train),
+        X_test=np.asarray(X_test),
+        y_train=np.asarray(y_train),
+        y_test=np.asarray(y_test),
+    )
+
+
+def _load_split_from_cache(
+    path: Path,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    data = np.load(path, allow_pickle=False)
+    return (
+        np.asarray(data["X_train"]),
+        np.asarray(data["X_test"]),
+        np.asarray(data["y_train"]),
+        np.asarray(data["y_test"]),
     )
 
 
